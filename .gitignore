@@ -1,0 +1,15 @@
+.idea/
+algo_app/build/
+algo_app/.externalNativeBuild/
+build/
+local.properties
+.gradle/
+segway_robotics_dev.iml
+algo_app/algo_app.iml
+proguard-rules.pro
+algo_app/src/main/jni/scripts/lib_list.cfg
+algo_app/src/main/libs/
+gradle/
+segway_robotics_algodev.iml
+loomo-algodev.iml
+dependency/3rdparty_android/

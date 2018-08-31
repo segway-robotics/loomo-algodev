@@ -1,0 +1,109 @@
+apply plugin: 'com.android.application'
+
+def versionMajor = 0
+def versionMinor = 1
+def versionPatch = 0
+
+android {
+    lintOptions{
+        abortOnError false
+    }
+
+    compileSdkVersion 26
+    buildToolsVersion '26.0.2'
+
+    defaultConfig {
+        applicationId "com.segway.robot.algo.algo_app"
+        minSdkVersion 22
+        targetSdkVersion 22
+        versionCode versionMajor * 10000 + versionMinor * 1000 + versionPatch * 100
+        versionName "${versionMajor}.${versionMinor}.${versionPatch}"
+
+        buildConfigField 'String', 'GIT_SHA', '\"007\"'
+
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            abiFilters "x86_64"
+        }
+        javaCompileOptions.annotationProcessorOptions.includeCompileClasspath = true
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++11 -fexceptions -frtti -Wattributes -Werror=return-type"
+                arguments "-DCMAKE_BUILD_TYPE=Release",
+                "-DANDROID_NDK=" + GetNDKDir() ,
+                "-DANDROID_NATIVE_API_LEVEL=android-22",
+                "-DANDROID_ABI=x86_64",
+                "-DANDROID_TOOLCHAIN_NAME=clang",
+                "-DANDROID_STL=c++_static"
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    sourceSets {
+        main {
+            jni.srcDirs =[]     // disable automatic ndk-build call
+            jniLibs.srcDirs = ['src/main/libs']
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path 'src/main/jni/CMakeLists.txt'
+        }
+    }
+    
+}
+
+repositories{
+    jcenter()
+    flatDir {
+        dirs file("../dependency/aar")
+    }
+
+    maven {
+        url 'https://dl.bintray.com/ark338/maven'
+    }
+
+    maven {
+        url 'http://192.168.10.7:8081/nexus/content/repositories/apr-internal/'
+    }
+
+}
+
+dependencies {
+    compile fileTree(dir: 'libs', include: ['*.jar'])
+    androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
+        exclude group: 'com.android.support', module: 'support-annotations'
+    })
+    compile 'com.android.support:appcompat-v7:26.1.0'
+    testCompile 'junit:junit:4.12'
+
+    compile 'com.jakewharton:butterknife:7.0.1'
+    compile 'com.jakewharton.timber:timber:4.1.1'
+    implementation 'com.alibaba:fastjson:1.1.62.android'
+    implementation 'com.xiaomi.infra.galaxy:galaxy-fds-core:3.0.11'
+    implementation 'com.xiaomi.infra.galaxy:galaxy-fds-sdk-android:3.0.11'
+    implementation 'com.squareup.okhttp3:okhttp:3.8.1'
+    implementation 'io.reactivex.rxjava2:rxandroid:2.0.1'
+
+    fileTree(dir: '../dependency/aar', include: '**/*.aar')
+            .each { File file ->
+        dependencies.add("compile", [
+                name: file.name.lastIndexOf('.').with { it != -1 ? file.name[0..<it] : file.name },
+                ext: 'aar'
+        ])
+    }
+}
+
+task AprAlgoLibSyncBeforePackage(type:Exec) {
+    println "prepare to package algo libs."
+    commandLine 'python', './src/main/jni/scripts/lib_package.py'
+}
+preBuild.dependsOn AprAlgoLibSyncBeforePackage
