@@ -1,4 +1,4 @@
-#loomo-algodev
+# loomo-algodev
 This is an Android studio project that enables native C++ development of robotics applications on Loomo robot.
 
 ## Description
