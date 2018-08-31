@@ -1,0 +1,85 @@
+import org.apache.tools.ant.taskdefs.condition.Os
+
+
+buildscript {
+    repositories {
+        jcenter()
+        maven {
+            url 'https://maven.google.com/'
+            name 'Google'
+        }
+        google()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:3.0.1'
+        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.7'
+        classpath 'com.github.dcendents:android-maven-gradle-plugin:1.5'
+        classpath 'me.tatarka:gradle-retrolambda:3.7.0'
+
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
+allprojects {
+    repositories {
+        jcenter()
+        flatDir {
+            dirs file("libs")
+        }
+        maven {
+            url 'https://dl.bintray.com/ark338/maven'
+        }
+        maven { url "https://jitpack.io" }
+        maven { url "http://clojars.org/repo" }
+        google()
+    }
+}
+
+
+// call regular ndk-build(.cmd) script from app directory
+def GetNDKDir()  {
+    def localProperties = new Properties()
+
+    def NDK_SEARCH_VARS = ['ANDROID_NDK_HOME', 'ANDROID_NDK_ROOT', 'NDKROOT', 'NDKHOME']
+    def ndk_path = null
+
+    def lim = (Os.isFamily(Os.FAMILY_WINDOWS)) ? '\\' : '/'
+
+// Search Local.Properties file
+    try {
+        localProperties.load(project.rootProject.file('local.properties').newDataInputStream())
+        def ndkDir = localProperties.getProperty('ndk.dir')
+        ndk_path = ndkDir != null ? ndkDir + lim : null;
+    } catch (java.io.FileNotFoundException e) {
+        println 'local.properties file not found'
+    }
+
+// Search env var
+    if (ndk_path == null){
+        for (String var : NDK_SEARCH_VARS) {
+            def v = System.getenv(var)
+
+            if (v != null) {
+                ndk_path = v + lim
+                println "found in System Environment *$var = " + ndk_path
+                break
+            }
+        }
+    } else {
+        println 'found in local.properties *NDK_PATH = ' + ndk_path
+    }
+
+    if (ndk_path == null) {
+        println 'No NDK_PATH found'
+        ndk_path = ''
+    }
+    return ndk_path
+}
+
+def NDKCommand() {
+    if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+        return GetNDKDir() + "ndk-build.cmd"
+    } else {
+        return GetNDKDir() + "ndk-build"
+    }
+}
