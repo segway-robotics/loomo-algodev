@@ -9,7 +9,8 @@ Developers can build a ROS like thread, retrieve sensor data, and execute veloci
 - app_localmapping_test: generate local occupancy map by fusing Realsense depth images and robot TF odometry
 - app_tensorflow_sample: object recognition based on a custormized-built tensorflow library
 
-The 3rd party library should be downloaded and extracted to **dependency\3rdparty_android**. (It might be slow to access outside China, better to be replaced)
-https://pan.baidu.com/s/16zqUUY-HJKBKbD976b79Ig
+The 3rd party library should be downloaded and extracted to **dependency\3rdparty_android**:
+
+http://pan.aprwork.com/index.php/s/68hUtg6ZfC9bAvj
 
 **This project is still in beta phases, and more documentation is needed.**
