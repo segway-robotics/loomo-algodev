@@ -5,8 +5,8 @@ project(Algo)
 #config APP module
 #####################################
 # MACROS for selecting modules
-#set(APP_MODULE "TEST")
-set(APP_MODULE "LOCALMAPPING_TEST")
+set(APP_MODULE "TEST")
+#set(APP_MODULE "LOCALMAPPING_TEST")
 #set(APP_MODULE "TENSORFLOW_SAMPLE")
 
 #####################################

@@ -14,3 +14,8 @@ The 3rd party library should be downloaded and extracted to **dependency\3rdpart
 http://pan.aprwork.com/index.php/s/68hUtg6ZfC9bAvj
 
 **This project is still in beta phases, and more documentation is needed.**
+
+## Dependency 
+- Python 
+- CMake 
+
