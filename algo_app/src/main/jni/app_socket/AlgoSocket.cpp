@@ -296,24 +296,25 @@ namespace ninebot_algo
             // m_persons
             ALOGD("send #%d",nStep);
             int num_person = m_persons.size();
+            const float resolution = 0.05;
             for (int i = 0; i != num_person; i++){
-                floats_send[4+i*2] = m_persons[i].first;
-                floats_send[5+i*2] = m_persons[i].second;
+                floats_send[4+i*2] = (m_persons[i].first - (float)m_local_map.cols) * resolution + raw_odometry.twist.pose.x;
+                floats_send[5+i*2] = (m_persons[i].second - (float)m_local_map.rows) * resolution + raw_odometry.twist.pose.y;
                 // ALOGD("send Person: (%f,%f)", m_persons[i].first, m_persons[i].second);
             }
 
             int send_info_floats = m_p_server->sendFloats(floats_send, 14);
             if (send_info_floats < 0) {
-                ALOGW("send floats failed");
+                ALOGW("server send floats failed");
                 return;
             }
             else {
-                ALOGD("send floats: (%.2f,%.2f,%.2f,%.2f)", floats_send[0],floats_send[1],floats_send[2],floats_send[3]);
-                ALOGD("send floats: (%.0f,%.0f)", floats_send[4],floats_send[5]);
-                ALOGD("send floats: (%.0f,%.0f)", floats_send[6],floats_send[7]);
-                ALOGD("send floats: (%.0f,%.0f)", floats_send[8],floats_send[9]);
-                ALOGD("send floats: (%.0f,%.0f)", floats_send[10],floats_send[11]);
-                ALOGD("send floats: (%.0f,%.0f)\n", floats_send[12],floats_send[13]);
+                ALOGD("server send floats: (%.2f,%.2f,%.2f,%.2f)", floats_send[0],floats_send[1],floats_send[2],floats_send[3]);
+                ALOGD("server send floats: (%.0f,%.0f)", floats_send[4],floats_send[5]);
+                ALOGD("server send floats: (%.0f,%.0f)", floats_send[6],floats_send[7]);
+                ALOGD("server send floats: (%.0f,%.0f)", floats_send[8],floats_send[9]);
+                ALOGD("server send floats: (%.0f,%.0f)", floats_send[10],floats_send[11]);
+                ALOGD("server send floats: (%.0f,%.0f)\n", floats_send[12],floats_send[13]);
                 nStep++;
             }
 
@@ -329,20 +330,18 @@ namespace ninebot_algo
             //     ALOGD("send depth %lld",raw_depth.timestampSys);
             // }
 
-
-            // TODO: 
-            // const int length_recv = 3;
-            // char* chars_recv = new char[length_recv];
-            // int recv_info = m_p_server->recvChars(chars_recv,length_recv);
-            // if (recv_info>0)
-            // {
-            //     ALOGD("received signal ??? ");
-            // }
-            // else {
-            //     ALOGW("failed to receive signal");
-            //     return;
-            // }            
-
+            const int length_recv = 2;
+            float* floats_recv = new float[length_recv];
+            int recv_info = m_p_server->recvFloats(floats_recv,length_recv);
+            if (recv_info>0)
+            {
+                mRawDataInterface->ExecuteCmd(floats_recv[0], floats_recv[1], mRawDataInterface->getCurrentTimestampSys());
+                ALOGD("server recv floats: %.2f, %.2f", floats_recv[0], floats_recv[1]);
+            }
+            else {
+                ALOGW("server failed to receive signal");
+                return;
+            }            
         }
 
 		float AlgoSocket::runTime()
