@@ -71,8 +71,30 @@ JNIEXPORT void JNICALL testAlgoStart(JNIEnv *env, jobject obj, jboolean isSim)
     pAlgoMain->start();
     mAlgoStarted = true;
 }
-#endif
 
+/***********************************************************
+********** Socket *************************
+***********************************************************/
+#elif defined(APP_SOCKET)
+#include "AlgoSocket.h"
+
+RawData *pAlgoMainRawData = NULL;
+socket_algo::AlgoSocket* pAlgoMain = NULL;
+std::string app_name = "APP_SOCKET";
+
+JNIEXPORT void JNICALL testAlgoStart(JNIEnv *env, jobject obj, jboolean isSim)
+{
+    pAlgoMainRawData = new RawData();
+    RawData::StartSensors(isSim, "/sdcard/RawDataRec/tmp/");
+    pAlgoMainRawData->attachJVM();
+    pAlgoMain = new socket_algo::AlgoSocket(pAlgoMainRawData, 50);
+    socket_algo::test_params_t cParams;
+    pAlgoMain->init(cParams);
+    pAlgoMain->start();
+    mAlgoStarted = true;
+}
+
+#endif
 
 int camera_index = 2;
 bool useAutoExp = false;
@@ -181,6 +203,9 @@ JNIEXPORT void JNICALL recordAlgoStart(JNIEnv *env, jobject obj, jboolean isTmp)
 #if defined(APP_TEST)
         pAlgoMainRawData->StartRecording(rfolder,t0);
         pAlgoMain->startPoseRecord(rfolder,t0);
+#elif defined(APP_SOCKET)
+        pAlgoMainRawData->StartRecording(rfolder,t0);
+        pAlgoMain->startPoseRecord(rfolder,t0);        
 #else
         pAlgoMainRawData->StartRecording(rfolder,t0);
 #endif
@@ -359,6 +384,8 @@ JNIEXPORT jint JNICALL CameraConfigureType(JNIEnv *env, jobject obj) {
     return USE_DEPTH | USE_FISHEYE | USE_DS4COLOR_VGA | USE_PLATFORMCAM;
 #elif defined(APP_TENSORFLOW_SAMPLE)
     return USE_PLATFORMCAM;
+#elif defined(APP_SOCKET)
+    return USE_DEPTH | USE_FISHEYE;
 #else
     return USE_DEPTH | USE_FISHEYE;
 #endif

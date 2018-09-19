@@ -5,9 +5,10 @@ project(Algo)
 #config APP module
 #####################################
 # MACROS for selecting modules
-set(APP_MODULE "TEST")
-#set(APP_MODULE "LOCALMAPPING_TEST")
-#set(APP_MODULE "TENSORFLOW_SAMPLE")
+# set(APP_MODULE "TEST")
+# set(APP_MODULE "LOCALMAPPING_TEST")
+# set(APP_MODULE "TENSORFLOW_SAMPLE")
+set(APP_MODULE "SOCKET")
 
 #####################################
 # Set the compile related flags....
@@ -78,7 +79,6 @@ if(USING_TEST_MODULE)
 #    set(USE_LIBREALSENSE ON)
 endif(USING_TEST_MODULE)
 
-
 string(COMPARE EQUAL ${APP_MODULE} "LOCALMAPPING_TEST" USING_LOCALMAPPING_TEST_MODULE)
 if(USING_LOCALMAPPING_TEST_MODULE)
     set(USE_LOCALMAPPING ON)
@@ -88,6 +88,12 @@ string(COMPARE EQUAL ${APP_MODULE} "TENSORFLOW_SAMPLE" USING_TENSORFLOW_SAMPLE_M
 if(USING_TENSORFLOW_SAMPLE_MODULE)
     set(USE_TENSORFLOW ON)
 endif(USING_TENSORFLOW_SAMPLE_MODULE)
+
+string(COMPARE EQUAL ${APP_MODULE} "SOCKET" USING_SOCKET_MODULE)
+if(USING_SOCKET_MODULE)
+    set(USE_LOCALMAPPING ON)
+#    set(USE_LIBREALSENSE ON)
+endif(USING_SOCKET_MODULE)
 
 #####################################
 #link AlgoBase   #maybe as a subdirectory better ?
@@ -196,6 +202,19 @@ if(USING_TENSORFLOW_SAMPLE_MODULE)
     add_definitions("-DAPP_TENSORFLOW_SAMPLE")
 endif()
 
+#####################################
+#compile the app test
+#####################################
+if(USING_SOCKET_MODULE)
+    include_directories(${PROJECT_SOURCE_DIR}/app_socket)
+    set(TARGET_FILES
+        ${GENERA_TAGET_FILES}
+        ${PROJECT_SOURCE_DIR}/app_socket/AlgoSocket.cpp
+        ${PROJECT_SOURCE_DIR}/app_socket/SocketServer.cpp
+        ${ALGO_BASE_DIR}/utils/AlgoUtils.cpp
+    )
+    add_definitions("-DAPP_SOCKET")
+endif()
 
 #####################################
 #finally compiles it
