@@ -273,7 +273,8 @@ namespace ninebot_algo
                 cv::imwrite(filename_depth, raw_depth.image);
                 string filename_map = m_folder_socket + "map_" + ToString(nStep) + ".png";
                 cv::imwrite(filename_map, m_local_map);
-                m_state_file << raw_odometry.twist.pose.x << " " << raw_odometry.twist.pose.y << " " << raw_odometry.twist.pose.orientation << std::endl;            
+                m_state_file << raw_odometry.twist.pose.x << " " << raw_odometry.twist.pose.y << " " << raw_odometry.twist.pose.orientation << " " << (raw_odometry.timestamp - m_timestamp_start)/1e6 << std::endl;
+                nStep++;
             }
 
             if (m_p_server->isStopped()) {
@@ -301,8 +302,8 @@ namespace ninebot_algo
             int num_person = m_persons.size();
             const float resolution = 0.05;
             for (int i = 0; i != num_person; i++){
-                floats_send[4+i*2] = (m_persons[i].first - (float)m_local_map.cols) * resolution + raw_odometry.twist.pose.x;
-                floats_send[5+i*2] = (m_persons[i].second - (float)m_local_map.rows) * resolution + raw_odometry.twist.pose.y;
+                floats_send[4+i*2] = (m_persons[i].first - (float)(m_local_map.cols/2)) * resolution + raw_odometry.twist.pose.x;
+                floats_send[5+i*2] = (m_persons[i].second - (float)(m_local_map.rows/2)) * resolution + raw_odometry.twist.pose.y;
                 // ALOGD("send Person: (%f,%f)", m_persons[i].first, m_persons[i].second);
             }
 
@@ -318,7 +319,6 @@ namespace ninebot_algo
                 ALOGD("server send floats: (%.0f,%.0f)", floats_send[8],floats_send[9]);
                 ALOGD("server send floats: (%.0f,%.0f)", floats_send[10],floats_send[11]);
                 ALOGD("server send floats: (%.0f,%.0f)\n", floats_send[12],floats_send[13]);
-                nStep++;
             }
 
             // Image 
@@ -344,7 +344,7 @@ namespace ninebot_algo
             else {
                 ALOGW("server failed to receive signal");
                 return;
-            }            
+            }
         }
 
 		float AlgoSocket::runTime()
@@ -371,180 +371,6 @@ namespace ninebot_algo
 			mDisplayIm = canvas.clone();
 		}
 
-        /* tf_test_type
-           0: world odom -> base 2d
-           1: massive test
-           2: world odom -> base pose
-           3: world odom -> neck center
-           4: world odom -> fisheye
-           5: world odom -> depth
-           6: world odom -> platform
-        */
-		void AlgoSocket::tf_test(int tf_test_type, cv::Mat& canvas_show)
-		{
-            string contents;
-            switch(tf_test_type){
-                case 0:{
-                    auto start = std::chrono::high_resolution_clock::now();
-                    ninebot_tf::tf_message tf_msg = mRawDataInterface->GetTfBewteenFrames("base_center_ground_frame", "world_odom_frame", -1, 500);
-                    auto end = std::chrono::high_resolution_clock::now();
-                    std::chrono::duration<double, std::milli> tf_duration = end-start;
-                    ALOGD("TFcost %lf,\ttimestamp is %lld", static_cast<double>(tf_duration.count()), (long long int)tf_msg.header.timestamp);
-
-                    float yaw;
-                    StampedPose odom_pos;
-                    if(tf_msg.err==0){
-                        odom_pos = tfmsgTo2DPose(tf_msg);
-                        yaw = odom_pos.pose.orientation;
-                    }
-                    else
-                        ALOGE("tfmsg error code: %d", tf_msg.err);
-
-                    contents = ToString(tf_test_type) + "base 2d TF R:" + ToString(tf_msg.header.timestamp/1000) + ", rx:" + ToString(tf_msg.tf_data.rotation.x) + ", ry:" + ToString(tf_msg.tf_data.rotation.y) + ", rz:" + ToString(tf_msg.tf_data.rotation.z) + ", rw:" + ToString(tf_msg.tf_data.rotation.w)+ ", theta:" + ToString(yaw);
-                    putText(canvas_show, contents, cv::Point(1, 315), CV_FONT_HERSHEY_COMPLEX, 0.39, cv::Scalar(0,0,0),1);
-                    contents = ToString(tf_test_type) + "  TF T: tx:" + ToString(tf_msg.tf_data.translation.x) + ", ty:" + ToString(tf_msg.tf_data.translation.y) + ", tz:" + ToString(tf_msg.tf_data.translation.z);
-                    putText(canvas_show, contents, cv::Point(1, 330), CV_FONT_HERSHEY_COMPLEX, 0.39, cv::Scalar(0,0,0),1);
-
-                    break;
-                }
-                case 1:{
-                    auto start = std::chrono::high_resolution_clock::now();
-                    ninebot_tf::vector_req_t reqList;
-                    ninebot_tf::vector_tf_msg_t resList;
-                    ninebot_tf::tf_request_message msg1("world_evio_frame", "base_center_wheel_axis_frame");
-                    for(int i = 0; i<100 ; i++){
-                        reqList.push_back(msg1);
-                    }
-                    mRawDataInterface->getMassiveTfData(&reqList,&resList);
-                    auto end = std::chrono::high_resolution_clock::now();
-                    for(auto tfmsg : resList){
-                        ALOGD("%s %s %lld\t %f\t%f\t%f\t",tfmsg.frame_id.c_str(),tfmsg.header.parent_frame_id.c_str(), tfmsg.header.timestamp, tfmsg.tf_data.rotation.x, tfmsg.tf_data.rotation.z, tfmsg.tf_data.translation.x);
-                    }
-                    std::chrono::duration<double, std::milli> tf_duration = end-start;
-                    auto start1 = std::chrono::high_resolution_clock::now();
-                    ninebot_tf::tf_message tf_msg = mRawDataInterface->GetTfBewteenFrames("base_center_wheel_axis_frame", "world_odom_frame", -1, 500);
-                    auto end1 = std::chrono::high_resolution_clock::now();
-                    std::chrono::duration<double, std::milli> tf_duration1 = end1-start1;
-                    ALOGD("TFcost \t%lf\t%lf", static_cast<double>(tf_duration.count()), static_cast<double>(tf_duration1.count()));
-                    break;
-                }
-                case 2:{
-                    auto start = std::chrono::high_resolution_clock::now();
-                    ninebot_tf::tf_message tf_msg = mRawDataInterface->GetTfBewteenFrames("base_center_wheel_axis_frame", "world_odom_frame", -1, 500);
-                    auto end = std::chrono::high_resolution_clock::now();
-                    std::chrono::duration<double, std::milli> tf_duration = end-start;
-                    ALOGD("TFcost %lf,\ttimestamp is %lld", static_cast<double>(tf_duration.count()), (long long int)tf_msg.header.timestamp);
-
-                    float yaw;
-                    StampedPose odom_pos;
-                    if(tf_msg.err==0){
-                       odom_pos = tfmsgTo2DPose(tf_msg);
-                       yaw = odom_pos.pose.orientation;
-                    }
-                    else
-                       ALOGE("tfmsg error code: %d", tf_msg.err);
-
-                    contents = ToString(tf_test_type) + "base pose TF R:" + ToString(tf_msg.header.timestamp/1000) + ", rx:" + ToString(tf_msg.tf_data.rotation.x) + ", ry:" + ToString(tf_msg.tf_data.rotation.y) + ", rz:" + ToString(tf_msg.tf_data.rotation.z) + ", rw:" + ToString(tf_msg.tf_data.rotation.w)+ ", theta:" + ToString(yaw);
-                    putText(canvas_show, contents, cv::Point(1, 315), CV_FONT_HERSHEY_COMPLEX, 0.39, cv::Scalar(0,0,0),1);
-                    contents = "  TF T: tx:" + ToString(tf_msg.tf_data.translation.x) + ", ty:" + ToString(tf_msg.tf_data.translation.y) + ", tz:" + ToString(tf_msg.tf_data.translation.z);
-                    putText(canvas_show, contents, cv::Point(1, 330), CV_FONT_HERSHEY_COMPLEX, 0.39, cv::Scalar(0,0,0),1);
-                    break;
-                }
-                case 3:{
-                    auto start = std::chrono::high_resolution_clock::now();
-                    ninebot_tf::tf_message tf_msg = mRawDataInterface->GetTfBewteenFrames("neck_center_body_internal_frame", "world_odom_frame", -1, 500);
-                    auto end = std::chrono::high_resolution_clock::now();
-                    std::chrono::duration<double, std::milli> tf_duration = end-start;
-                    ALOGD("TFcost %lf,\ttimestamp is %lld", static_cast<double>(tf_duration.count()), (long long int)tf_msg.header.timestamp);
-
-                    float yaw;
-                    StampedPose odom_pos;
-                    if(tf_msg.err==0){
-                       odom_pos = tfmsgTo2DPose(tf_msg);
-                       yaw = odom_pos.pose.orientation;
-                    }
-                    else
-                       ALOGE("tfmsg error code: %d", tf_msg.err);
-
-                    contents = ToString(tf_test_type) + "neck center TF R:" + ToString(tf_msg.header.timestamp/1000) + ", rx:" + ToString(tf_msg.tf_data.rotation.x) + ", ry:" + ToString(tf_msg.tf_data.rotation.y) + ", rz:" + ToString(tf_msg.tf_data.rotation.z) + ", rw:" + ToString(tf_msg.tf_data.rotation.w)+ ", theta:" + ToString(yaw);
-                    putText(canvas_show, contents, cv::Point(1, 315), CV_FONT_HERSHEY_COMPLEX, 0.39, cv::Scalar(0,0,0),1);
-                    contents = "  TF T: tx:" + ToString(tf_msg.tf_data.translation.x) + ", ty:" + ToString(tf_msg.tf_data.translation.y) + ", tz:" + ToString(tf_msg.tf_data.translation.z);
-                    putText(canvas_show, contents, cv::Point(1, 330), CV_FONT_HERSHEY_COMPLEX, 0.39, cv::Scalar(0,0,0),1);
-                    break;
-                }
-                case 4:{
-                    auto start = std::chrono::high_resolution_clock::now();
-                    ninebot_tf::tf_message tf_msg = mRawDataInterface->GetTfBewteenFrames("rsfisheye_center_neck_fix_frame", "world_odom_frame", -1, 500);
-                    //ninebot_tf::tf_message tf_msg = mRawDataInterface->GetTfBewteenFrames("rsfisheye_center_neck_fix_frame", "world_evio_frame", -1, 500);
-                    auto end = std::chrono::high_resolution_clock::now();
-                    std::chrono::duration<double, std::milli> tf_duration = end-start;
-                    ALOGD("TFcost %lf,\ttimestamp is %lld", static_cast<double>(tf_duration.count()), (long long int)tf_msg.header.timestamp);
-
-                    float yaw;
-                    StampedPose odom_pos;
-                    if(tf_msg.err==0){
-                       odom_pos = tfmsgTo2DPose(tf_msg);
-                       yaw = odom_pos.pose.orientation;
-                    }
-                    else
-                       ALOGE("tfmsg error code: %d", tf_msg.err);
-
-                    contents = ToString(tf_test_type) + "fisheye TF R:" + ToString(tf_msg.header.timestamp/1000) + ", rx:" + ToString(tf_msg.tf_data.rotation.x) + ", ry:" + ToString(tf_msg.tf_data.rotation.y) + ", rz:" + ToString(tf_msg.tf_data.rotation.z) + ", rw:" + ToString(tf_msg.tf_data.rotation.w)+ ", theta:" + ToString(yaw);
-                    putText(canvas_show, contents, cv::Point(1, 315), CV_FONT_HERSHEY_COMPLEX, 0.39, cv::Scalar(0,0,0),1);
-                    contents = "  TF T: tx:" + ToString(tf_msg.tf_data.translation.x) + ", ty:" + ToString(tf_msg.tf_data.translation.y) + ", tz:" + ToString(tf_msg.tf_data.translation.z);
-                    putText(canvas_show, contents, cv::Point(1, 330), CV_FONT_HERSHEY_COMPLEX, 0.39, cv::Scalar(0,0,0),1);
-                    break;
-                }
-                case 5:{
-                    auto start = std::chrono::high_resolution_clock::now();
-                    ninebot_tf::tf_message tf_msg = mRawDataInterface->GetTfBewteenFrames("rsdepth_center_neck_fix_frame", "world_odom_frame", -1, 500);
-                    auto end = std::chrono::high_resolution_clock::now();
-                    std::chrono::duration<double, std::milli> tf_duration = end-start;
-                    ALOGD("TFcost %lf,\ttimestamp is %lld", static_cast<double>(tf_duration.count()), (long long int)tf_msg.header.timestamp);
-
-                    float yaw;
-                    StampedPose odom_pos;
-                    if(tf_msg.err==0){
-                       odom_pos = tfmsgTo2DPose(tf_msg);
-                       yaw = odom_pos.pose.orientation;
-                    }
-                    else
-                       ALOGE("tfmsg error code: %d", tf_msg.err);
-
-                    // odom coord
-                    contents = ToString(tf_test_type) + "depth TF R:" + ToString(tf_msg.header.timestamp/1000) + ", rx:" + ToString(tf_msg.tf_data.rotation.x) + ", ry:" + ToString(tf_msg.tf_data.rotation.y) + ", rz:" + ToString(tf_msg.tf_data.rotation.z) + ", rw:" + ToString(tf_msg.tf_data.rotation.w)+ ", theta:" + ToString(yaw);
-                    putText(canvas_show, contents, cv::Point(1, 315), CV_FONT_HERSHEY_COMPLEX, 0.39, cv::Scalar(0,0,0),1);
-                    contents = "  TF T: tx:" + ToString(tf_msg.tf_data.translation.x) + ", ty:" + ToString(tf_msg.tf_data.translation.y) + ", tz:" + ToString(tf_msg.tf_data.translation.z);
-                    putText(canvas_show, contents, cv::Point(1, 330), CV_FONT_HERSHEY_COMPLEX, 0.39, cv::Scalar(0,0,0),1);
-                    break;
-                 }
-                case 6:{
-                    auto start = std::chrono::high_resolution_clock::now();
-                    ninebot_tf::tf_message tf_msg = mRawDataInterface->GetTfBewteenFrames("platform_center_head_fix_frame", "world_odom_frame", -1, 500);
-                    auto end = std::chrono::high_resolution_clock::now();
-                    std::chrono::duration<double, std::milli> tf_duration = end-start;
-                    ALOGD("TFcost %lf,\ttimestamp is %lld", static_cast<double>(tf_duration.count()), (long long int)tf_msg.header.timestamp);
-
-                    float yaw;
-                    StampedPose odom_pos;
-                    if(tf_msg.err==0){
-                       odom_pos = tfmsgTo2DPose(tf_msg);
-                       yaw = odom_pos.pose.orientation;
-                    }
-                    else
-                       ALOGE("tfmsg error code: %d", tf_msg.err);
-
-                    contents = ToString(tf_test_type) + "platformcam TF R:" + ToString(tf_msg.header.timestamp/1000) + ", rx:" + ToString(tf_msg.tf_data.rotation.x) + ", ry:" + ToString(tf_msg.tf_data.rotation.y) + ", rz:" + ToString(tf_msg.tf_data.rotation.z) + ", rw:" + ToString(tf_msg.tf_data.rotation.w)+ ", theta:" + ToString(yaw);
-                    putText(canvas_show, contents, cv::Point(1, 315), CV_FONT_HERSHEY_COMPLEX, 0.39, cv::Scalar(0,0,0),1);
-                    contents = "  TF T: tx:" + ToString(tf_msg.tf_data.translation.x) + ", ty:" + ToString(tf_msg.tf_data.translation.y) + ", tz:" + ToString(tf_msg.tf_data.translation.z);
-                    putText(canvas_show, contents, cv::Point(1, 330), CV_FONT_HERSHEY_COMPLEX, 0.39, cv::Scalar(0,0,0),1);
-                    break;
-                 }
-                 default:
-                    break;
-            }
-		}
-
         void AlgoSocket::changeTfTestMode(){
             if(RawData::retrieveRobotModel() < 2){
                 if(tfTestMode > 6){
@@ -563,9 +389,9 @@ namespace ninebot_algo
 
         void AlgoSocket::createFolder(std::string new_folder_name)
         {
-            // std::string cmd_str_rm = "rm -rf \"" + new_folder_name + "\"";
-            // system(cmd_str_rm.c_str());  
-            // ALOGD("Command %s was executed. ", cmd_str_rm.c_str());          
+            std::string cmd_str_rm = "rm -rf \"" + new_folder_name + "\"";
+            system(cmd_str_rm.c_str());  
+            ALOGD("Command %s was executed. ", cmd_str_rm.c_str());          
             std::string cmd_str_mk = "mkdir \"" + new_folder_name + "\"";
             system(cmd_str_mk.c_str());
             ALOGD("Command %s was executed. ", cmd_str_mk.c_str());
@@ -686,7 +512,7 @@ namespace ninebot_algo
                     cv::rectangle(m_persons_map, cv::Point2f(x, y), cv::Point2f(x+w, y+h), color);
                 }
                 else if (a > 1000) {
-
+                    
                 }
                 else {
                     m_persons.push_back(std::make_pair(x + w/2, y + h/2));

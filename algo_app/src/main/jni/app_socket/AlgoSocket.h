@@ -75,7 +75,6 @@ namespace ninebot_algo
 		private:
 			/*! Copy internal canvas to intermediate buffer mDisplayIm */
 			void setDisplayData();
-            void tf_test(int tf_test_type, cv::Mat& canvas_show);
 
             int step_count;
 			int motion_test;
