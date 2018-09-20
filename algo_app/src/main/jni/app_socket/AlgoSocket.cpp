@@ -264,6 +264,7 @@ namespace ninebot_algo
 
             if (raw_depth.image.empty()) {
                 ALOGW("empty depth");
+                mRawDataInterface->ExecuteCmd(0.0f, 0.0f, mRawDataInterface->getCurrentTimestampSys());                
                 return;
             }
 
@@ -276,11 +277,13 @@ namespace ninebot_algo
             }
 
             if (m_p_server->isStopped()) {
+                mRawDataInterface->ExecuteCmd(0.0f, 0.0f, mRawDataInterface->getCurrentTimestampSys());   
                 ALOGW("server stopped");
                 return;
             }
 
             if (!m_p_server->isConnected()) {
+                mRawDataInterface->ExecuteCmd(0.0f, 0.0f, mRawDataInterface->getCurrentTimestampSys());   
                 ALOGW("server disconnected");
                 return;
             }
