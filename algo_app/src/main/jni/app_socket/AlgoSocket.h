@@ -41,6 +41,7 @@ namespace ninebot_algo
 				step_count = 0;
 				motion_test = 0;
 				motion_sign = 1;
+				scan_round = 0;
                 m_p_local_mapping = NULL;
 			}
 			~AlgoSocket();
@@ -125,6 +126,10 @@ namespace ninebot_algo
             bool detectPerson();
             void add_show_fov(float cur_angle, float fov_angle, cv::Mat &show_img, float radius_per_meter);
 			cv::Mat map_to_show(const cv::Mat & map);
+			bool findFront(const cv::Mat & map, const std::pair<int,int> & proposal, std::pair<int,int> & result, int region = 3);
+		
+			void scanHead(float pitch, float yaw_limit_degree);
+			int scan_round;
 		};
 
 	} // namespace socket_algo

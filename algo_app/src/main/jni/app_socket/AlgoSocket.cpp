@@ -343,8 +343,11 @@ namespace ninebot_algo
             }
             else {
                 ALOGW("server failed to receive signal");
-                return;
             }
+
+            // scanHead(0.0,40);
+
+            return;
         }
 
 		float AlgoSocket::runTime()
@@ -496,7 +499,7 @@ namespace ninebot_algo
             //         line += std::to_string((double)centroids.at<double>(i, j)) + " ";
             //     }
             //     ALOGD("centroids: %s",line.c_str());
-            // }            
+            // }
             // ALOGD("centroids ^^^");
 
             m_persons.clear();
@@ -515,7 +518,10 @@ namespace ninebot_algo
                     
                 }
                 else {
-                    m_persons.push_back(std::make_pair(x + w/2, y + h/2));
+                    std::pair<int,int> position;
+                    if (findFront(m_local_map,std::make_pair(x + std::round(w/2),y + std::round(h/2)),position,3)){
+                        m_persons.push_back(position);
+                    }
                 }
             }
 
@@ -589,6 +595,53 @@ namespace ninebot_algo
                 }
             } 
             return show.clone();   
+        }
+
+        bool AlgoSocket::findFront(const cv::Mat & map, const std::pair<int,int> & proposal, std::pair<int,int> & result, int region) {
+            float min_distance = 10000000;
+            float row_center = (map.rows-1)/2;
+            float col_center = (map.cols-1)/2;
+            for (int row = std::max(proposal.first - region,0); row != std::min(proposal.first + region,map.rows); row++) {
+                for (int col = std::max(proposal.second - region,0); col != std::min(proposal.second + region,map.cols); col++) {
+                    uchar prob = map.at<uchar>(col,row);
+                    if(prob > 0) {
+                        float distance = std::sqrt(std::pow((row - row_center),2) + std::pow((col - col_center),2));
+                        if (distance < min_distance){
+                            result.first = row;
+                            result.second = col;
+                            min_distance = distance;
+                        }
+                    }
+                }
+            }
+            if (min_distance < 10000000) {
+                return true;
+            }
+            else {
+                return false;
+            }
+        }
+
+        void AlgoSocket::scanHead(float pitch, float yaw_limit_degree)
+        {
+            // rotate head
+            StampedHeadPos raw_headpos;
+            mRawDataInterface->retrieveHeadPos(raw_headpos);
+
+            float angle_target = abs(yaw_limit_degree)*3.1415/180;
+
+            if(scan_round==0){
+                if(raw_headpos.yaw>-angle_target+0.25)
+                    mRawDataInterface->ExecuteHeadPos(-angle_target,pitch,0);
+                else
+                    scan_round = 1;
+            }
+            else{
+                if(raw_headpos.yaw<angle_target-0.25)
+                    mRawDataInterface->ExecuteHeadPos(angle_target,pitch,0);
+                else
+                    scan_round = 0;
+            }
         }
 
 	} // namespace socket_algo
