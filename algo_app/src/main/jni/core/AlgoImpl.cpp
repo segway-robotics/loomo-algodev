@@ -208,7 +208,6 @@ JNIEXPORT void JNICALL recordAlgoStart(JNIEnv *env, jobject obj, jboolean isTmp)
         pAlgoMainRawData->StartRecording(rfolder,t0);
         pAlgoMain->startPoseRecord(rfolder,t0);
 #elif defined(APP_SOCKET)
-        pAlgoMainRawData->StartRecording(rfolder,t0);
         pAlgoMain->startPoseRecord(rfolder,t0);        
 #else
         pAlgoMainRawData->StartRecording(rfolder,t0);
