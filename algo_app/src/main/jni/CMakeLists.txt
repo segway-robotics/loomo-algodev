@@ -18,7 +18,7 @@ set(CMAKE_CXX_FLAGS "-std=c++11 -fexceptions -frtti -Wattributes -Werror=return-
 set(CMAKE_LIBRARY_LINKER_FLAGS "-flto -fPIE")
 
 #####################################
-# Set the directorys / pathes ....
+# Set the directories / paths ....
 #####################################
 
 include_directories(${ANDROID_SYSROOT}/usr/include/x86_64-linux-android)

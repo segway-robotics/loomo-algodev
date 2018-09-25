@@ -35,13 +35,13 @@ namespace ninebot_algo
 				m_isRender = isRender;
                 pose_isRecording = false;
 				canvas = cv::Mat::zeros( cv::Size(640, 360), CV_8UC3 );
-				tfTestMode = 0;
 				m_is_stop = false;
 				m_slide_event = 0;
 				step_count = 0;
 				motion_test = 0;
 				motion_sign = 1;
 				scan_round = 0;
+				m_safety_control = true;
                 m_p_local_mapping = NULL;
 			}
 			~AlgoSocket();
@@ -71,8 +71,8 @@ namespace ninebot_algo
 			void startMotionTest();
             // VLS test
             void setVLSopen(bool en);
-            void changeTfTestMode();
-            int tfTestMode;
+            
+			void switchSafetyControl();
 		private:
 			/*! Copy internal canvas to intermediate buffer mDisplayIm */
 			void setDisplayData();
@@ -116,20 +116,32 @@ namespace ninebot_algo
 			std::ofstream m_state_file;
         	void createFolder(std::string new_folder_name);
 
+        	// local map
         	bool initLocalMapping();
         	bool prepare_localmap_and_pose_for_controller_g1();
 			RawData* m_p_localmapping_rawdata;
             int m_map_width, m_map_height;
             ninebot_algo::local_mapping::LocalMapping *m_p_local_mapping;
             cv::Mat m_local_map, m_persons_map;
+
+            // multi-person detection
             std::vector<std::pair<float, float>> m_persons;
-            bool detectPerson();
-            void add_show_fov(float cur_angle, float fov_angle, cv::Mat &show_img, float radius_per_meter);
-			cv::Mat map_to_show(const cv::Mat & map);
+            bool detectPersonFromMap();
+
+            // visualization
+            void addShowFov(float cur_angle, float fov_angle, cv::Mat &show_img, float radius_per_meter);
+			cv::Mat mapToShow(const cv::Mat & map);
 			bool findFront(const cv::Mat & map, const std::pair<int,int> & proposal, std::pair<int,int> & result, int region = 3);
 		
+            // head scan		
 			void scanHead(float pitch, float yaw_limit_degree);
 			int scan_round;
+
+			// safety verification
+			void safeControl(float v, float w);
+			bool m_safety_control; 
+			std::deque<float> m_ultrasonic_buffer;
+			float m_ultrasonic_average;
 		};
 
 	} // namespace socket_algo

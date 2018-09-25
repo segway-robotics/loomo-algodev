@@ -115,6 +115,10 @@ JNIEXPORT void JNICALL funcA(JNIEnv *env, jobject obj){
     if(pAlgoMain){
         pAlgoMain->clearMap(1);
     }
+#elif defined(APP_SOCKET)
+    if(pAlgoMain){
+        pAlgoMain->switchSafetyControl();
+    }    
 #endif
 }
 

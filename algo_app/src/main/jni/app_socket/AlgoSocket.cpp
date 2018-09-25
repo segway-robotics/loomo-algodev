@@ -4,7 +4,9 @@
 #include "Quaternion.h"
 #include "Vector3.h"
 
+#include <algorithm>
 #include "SocketServer.h"
+
 #define PI 3.1415
 
 namespace ninebot_algo
@@ -15,6 +17,8 @@ namespace ninebot_algo
 		using namespace cv;
 
 		AlgoSocket::~AlgoSocket() {
+            this->stopPoseRecord();
+
             if(m_p_local_mapping) {
                 delete m_p_local_mapping;
                 m_p_local_mapping = NULL;
@@ -48,6 +52,9 @@ namespace ninebot_algo
             m_timestamp_start = mRawDataInterface->getCurrentTimestampSys();
 
             initLocalMapping();
+
+            mRawDataInterface->ExecuteHeadMode(0);
+            mRawDataInterface->ExecuteHeadSmoothFactor(1,1,1);
 
 			return m_is_init_succed;
 		}
@@ -117,14 +124,6 @@ namespace ninebot_algo
 				return false;
 			}
 
-            // if(motion_test>0 && ++motion_test<150){
-            //     mRawDataInterface->ExecuteCmd(0, motion_sign*0.4, mRawDataInterface->getCurrentTimestampSys());
-            // }
-            // else{
-            //     motion_test=0;
-            //     mRawDataInterface->ExecuteCmd(0, 0, mRawDataInterface->getCurrentTimestampSys());
-            // }
-
             if(imgstream_en){
                 mRawDataInterface->retrieveDepth(raw_depth, false);
                 if(raw_depth.timestampSys==0)
@@ -141,37 +140,20 @@ namespace ninebot_algo
                 else
                 {
                     t_old=raw_depth.timestampSys;
-                }         
-
-                /*! Get raw sensor data from RawData instance */
-                // mRawDataInterface->retrieveFisheye(raw_fisheye, false);
-                // if(raw_fisheye.timestampSys==0)
-                // {
-                //     ALOGD("AlgoSocket: fisheye wrong");
-                //     return false;
-                // }
-
-                // // check if fisheye is duplicate
-                // if(t_old==raw_fisheye.timestampSys)
-                // {
-                //     ALOGD("fisheye duplicate: %lld",raw_fisheye.timestampSys/1000);
-                //     return true;
-                // }
-                // else
-                // {
-                //     t_old=raw_fisheye.timestampSys;
-                // }       
+                } 
             }
 
+            /*! **********************************************************************
+             * **** Local Detection on Robot
+             * ********************************************************************* */         
             mRawDataInterface->retrieveOdometry(raw_odometry, -1);
             prepare_localmap_and_pose_for_controller_g1();
-            detectPerson();
+            detectPersonFromMap();
 
             /*! **********************************************************************
-             * **** Computation on remote PC 
+             * **** Remote Policy on Cloud
              * ********************************************************************* */         
             this->stepServer();
-
 
 			/*! **********************************************************************
 			 * **** Processing the algorithm with all input and sensor data **********
@@ -185,10 +167,6 @@ namespace ninebot_algo
 				canvas.setTo(240);
 
 				if(imgstream_en){
-                    // cv::Mat ca2 = canvas(Rect(160,0,160,120));
-                    // resize(raw_fisheye.image,tfisheyeS,Size(),0.25,0.25);
-                    // cvtColor(tfisheyeS,tfisheye,CV_GRAY2RGB);
-                    // tfisheye.copyTo(ca2);
 
                     cv::Mat tdepth = raw_depth.image / 10;
                     cv::Mat tdepth8, tdepthup, tdepth8color;
@@ -199,12 +177,12 @@ namespace ninebot_algo
                     tdepth8color.copyTo(ca1);
 
                     if(!m_local_map.empty()){
-                        cv::Mat show = map_to_show(m_local_map);
+                        cv::Mat show = mapToShow(m_local_map);
                         for (auto person : m_persons) {
                             cv::rectangle(show, cv::Point2f(person.first - 5, person.second - 5), cv::Point2f(person.first + 5, person.second + 5), cv::Scalar(255, 0, 0));
                         }
                         cv::resize(show, show, cv::Size(360,360)); 
-                        add_show_fov(raw_odometry.twist.pose.orientation, 1.0, show, 0.05f);
+                        addShowFov(raw_odometry.twist.pose.orientation, 1.0, show, 0.05f);
                         ALOGD("show: size =(%zu,%zu)", show.rows, show.cols);
                         cv::Mat ca2 = canvas(cv::Rect(240, 0, show.cols, show.rows));
                         show.copyTo(ca2);
@@ -229,20 +207,15 @@ namespace ninebot_algo
                       r += (chans+'0');
                     }            
 
-                    contents = "depth: " + ToString((raw_depth.timestampSys - m_timestamp_start) / 1e6) + "(s)";
-                    putText(canvas, contents, cv::Point(1, 280), CV_FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0,0,255),1);
+                    if (m_safety_control){
+                        contents = "Safety: TRUE"; 
+                    }
+                    else {
+                        contents = "Safety: FALSE"; 
+                    }
+                    putText(canvas, contents, cv::Point(1, 280), CV_FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0,0,0), 2);
+
                 }
-
-                // mRawDataInterface->retrieveHeadPos(raw_headpos);
-                // contents = "headpos:" + ToString(raw_headpos.timestampYaw/1000) + ", yaw:" + ToString(raw_headpos.yaw*180/3.14159) + ", pitch:" + ToString(raw_headpos.pitch*180/3.14159) + ", roll:" + ToString(raw_headpos.roll*180/3.14159);
-                // putText(canvas, contents, cv::Point(1, 170), CV_FONT_HERSHEY_COMPLEX, 0.39, cv::Scalar(0,0,0),1);
-
-				contents = "odom: " + ToString((raw_odometry.timestamp - m_timestamp_start)/1e6) + "(s), x: " + ToString(raw_odometry.twist.pose.x) + ", y: " + ToString(raw_odometry.twist.pose.y)+ ", o: " + ToString(raw_odometry.twist.pose.orientation);
-				putText(canvas, contents, cv::Point(1, 320), CV_FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0,0,0),1);
-
-				// StampedVelocity velocity;
-    //             mRawDataInterface->retrieveBaseVelocity(velocity);
-    //             ALOGD("odometry delta: v0:%f, v:%f, w0:%f, w:%f", velocity.vel.linear_velocity, raw_odometry.twist.velocity.linear_velocity, velocity.vel.angular_velocity, raw_odometry.twist.velocity.angular_velocity);
 
 				/*! Copy internal canvas to intermediate buffer mDisplayIm */
                 setDisplayData();
@@ -295,7 +268,7 @@ namespace ninebot_algo
             floats_send[0] = raw_odometry.twist.pose.x;
             floats_send[1] = raw_odometry.twist.pose.y;
             floats_send[2] = raw_odometry.twist.pose.orientation;
-            floats_send[3] = (raw_odometry.timestamp - m_timestamp_start)/1e6;
+            floats_send[3] = (raw_depth.timestampSys - m_timestamp_start)/1e6;
 
             // m_persons
             ALOGD("send #%d",nStep);
@@ -321,33 +294,44 @@ namespace ninebot_algo
                 ALOGD("server send floats: (%.0f,%.0f)\n", floats_send[12],floats_send[13]);
             }
 
-            // Image 
-            // cv::Mat1w random_image(3,3);
-            // cv::randu(random_image, cv::Scalar(200), cv::Scalar(400));      
-            // int send_info_image = m_p_server->sendDepth(raw_depth.image);
-            // if (send_info_image < 0) {
-            //     ALOGW("send depth failed");
-            //     return;
-            // }
-            // else {
-            //     ALOGD("send depth %lld",raw_depth.timestampSys);
-            // }
-
             const int length_recv = 2;
             float* floats_recv = new float[length_recv];
             int recv_info = m_p_server->recvFloats(floats_recv,length_recv);
             if (recv_info>0)
             {
-                mRawDataInterface->ExecuteCmd(floats_recv[0], floats_recv[1], mRawDataInterface->getCurrentTimestampSys());
+                this->safeControl(floats_recv[0],floats_recv[1]);
+                // mRawDataInterface->ExecuteCmd(floats_recv[0], floats_recv[1], mRawDataInterface->getCurrentTimestampSys());
                 ALOGD("server recv floats: %.2f, %.2f", floats_recv[0], floats_recv[1]);
             }
             else {
                 ALOGW("server failed to receive signal");
             }
 
-            // scanHead(0.0,40);
-
             return;
+        }
+
+        void AlgoSocket::switchSafetyControl() {
+            m_safety_control = !m_safety_control;
+        }
+
+        void AlgoSocket::safeControl(float v, float w) {
+
+            if (m_safety_control){
+                const float kCloseObstacleThres = 1.0;
+                if(m_ultrasonic_average < kCloseObstacleThres*1000){
+                    if(v>0 && std::abs(v/std::fmax(0.01,w)) > 0.8){
+                        StampedVelocity velocity;
+                        mRawDataInterface->retrieveBaseVelocity(velocity);
+                        float v_emergency = std::min(0.0, 0.2-velocity.vel.linear_velocity);
+                        ALOGE("command dangerous: (%f,%f), current vel: (%f,%f), ultrasonic_average = %f: v_emergency = %f", v, w, velocity.vel.linear_velocity, velocity.vel.angular_velocity, m_ultrasonic_average, v_emergency);
+                        mRawDataInterface->ExecuteCmd(v_emergency, 0.0f, 0);
+                        return;
+                    }
+                }
+            }
+
+            mRawDataInterface->ExecuteCmd(v, w, 0);
+            ALOGD("command safe: (%f,%f)", v, w);
         }
 
 		float AlgoSocket::runTime()
@@ -373,22 +357,6 @@ namespace ninebot_algo
 			std::lock_guard<std::mutex> lock(mMutexDisplay);
 			mDisplayIm = canvas.clone();
 		}
-
-        void AlgoSocket::changeTfTestMode(){
-            if(RawData::retrieveRobotModel() < 2){
-                if(tfTestMode > 6){
-                    tfTestMode = 0;
-                } else {
-                    tfTestMode++;
-                }
-             } else{
-                if(tfTestMode > 2){
-                    tfTestMode = 0;
-                } else {
-                    tfTestMode++;
-                }
-             }
-        }
 
         void AlgoSocket::createFolder(std::string new_folder_name)
         {
@@ -466,12 +434,25 @@ namespace ninebot_algo
             else{
                 ALOGE("localmap: Could not find tf pose with specified depth ts, error code: %d, %d", tf_msg.err, tf_msg2.err);
             }
-            m_p_local_mapping->getDepthMap(m_local_map, false, tfmsgTo2DPose(resList[0]));
+
+            // StampedFloat ultrasonic;
+            mRawDataInterface->retrieveUltrasonic(raw_ultrasonic);
+            m_ultrasonic_buffer.push_back(raw_ultrasonic.value);
+            if (m_ultrasonic_buffer.size() > 3) {
+                m_ultrasonic_buffer.pop_front();
+            }
+            float ultrasonic_sum = 0;
+            for (auto ultrasonic_element : m_ultrasonic_buffer) {
+                ultrasonic_sum += ultrasonic_element;
+            }
+            m_ultrasonic_average = ultrasonic_sum / m_ultrasonic_buffer.size(); 
+
+            m_p_local_mapping->getDepthMapWithFrontUltrasonic(m_local_map, false, tfmsgTo2DPose(resList[0]), m_ultrasonic_average);
 
             return true;
         }
 
-        bool AlgoSocket::detectPerson() {
+        bool AlgoSocket::detectPersonFromMap() {
             m_persons_map = m_local_map.clone();
             int erosion_size = 1;
             cv::Mat element = cv::getStructuringElement(cv::MORPH_ELLIPSE,
@@ -490,18 +471,6 @@ namespace ninebot_algo
             cv::Mat centroids;
             cv::connectedComponentsWithStats(m_persons_map, labels, stats, centroids, 8, CV_16U);
 
-            // ALOGD("centroids vvv");
-            // for (int i = 0; i < centroids.rows; i++)
-            // {
-            //     std::string line;
-            //     for (int j = 0; j < centroids.cols; j++)
-            //     {
-            //         line += std::to_string((double)centroids.at<double>(i, j)) + " ";
-            //     }
-            //     ALOGD("centroids: %s",line.c_str());
-            // }
-            // ALOGD("centroids ^^^");
-
             m_persons.clear();
             for (int i = 0; i < stats.rows; i++)
             {
@@ -510,7 +479,7 @@ namespace ninebot_algo
                 int w = stats.at<int>(cv::Point(2, i));
                 int h = stats.at<int>(cv::Point(3, i));
                 int a = stats.at<int>(cv::Point(4, i));
-                if (a < 25 && w < 5 && h < 5) {
+                if (a < 40 && w < 6 && h < 6) {
                     cv::Scalar color(0, 0, 0);
                     cv::rectangle(m_persons_map, cv::Point2f(x, y), cv::Point2f(x+w, y+h), color);
                 }
@@ -528,7 +497,7 @@ namespace ninebot_algo
             return true;
         }
 
-        void AlgoSocket::add_show_fov(float cur_angle, float fov_angle, cv::Mat &show_img, float radius_per_meter)
+        void AlgoSocket::addShowFov(float cur_angle, float fov_angle, cv::Mat &show_img, float radius_per_meter)
         {
             cv::Point2f center = cv::Point2f(show_img.cols / 2, show_img.rows / 2);
             cv::Point2f left, right;
@@ -545,7 +514,7 @@ namespace ninebot_algo
 
             cv::line(show_img, center, left, cv::Scalar(0, 0, 255), 1, cv::LINE_4);
             cv::line(show_img, center, right, cv::Scalar(0, 0, 255), 1, cv::LINE_4);
-            
+
             if (radius_per_meter > 0) {
                 cv::circle(show_img, center, 1 * radius_per_meter, cv::Scalar(255, 160, 160), 1.5);
                 cv::circle(show_img, center, 2 * radius_per_meter, cv::Scalar(255, 160, 160), 1.5);
@@ -563,21 +532,15 @@ namespace ninebot_algo
             loomo_left_rear.y = center.y - 0.7*sin(cur_angle)*radius_per_meter + 0.2*cos(cur_angle)*radius_per_meter;
             loomo_right_rear.x = center.x - 0.7*cos(cur_angle)*radius_per_meter + 0.2*sin(cur_angle)*radius_per_meter;
             loomo_right_rear.y = center.y - 0.7*sin(cur_angle)*radius_per_meter - 0.2*cos(cur_angle)*radius_per_meter;
-            
+
             cv::line(show_img, loomo_left_front, loomo_right_front, cv::Scalar(100, 200, 0), 2, cv::LINE_4);
             cv::line(show_img, loomo_left_front, loomo_left_rear, cv::Scalar(100, 200, 0), 2, cv::LINE_4);
             cv::line(show_img, loomo_right_rear, loomo_right_front, cv::Scalar(100, 200, 0), 2, cv::LINE_4);
             cv::line(show_img, loomo_left_rear, loomo_right_rear, cv::Scalar(100, 200, 0), 2, cv::LINE_4);
             cv::circle(show_img, loomo_right_front, 1, cv::Scalar(0, 0, 255), 3);
+        }
 
-            cv::Point poly[4];
-            poly[0] = loomo_left_front;
-            poly[1] = loomo_right_front;
-            poly[2] = loomo_right_rear;
-            poly[3] = loomo_left_rear;
-        }        
-
-        cv::Mat AlgoSocket::map_to_show(const cv::Mat & map) {
+        cv::Mat AlgoSocket::mapToShow(const cv::Mat & map) {
             cv::Mat show = cv::Mat::zeros(map.rows, map.cols, CV_8UC3);
             for (int i = 0; i < map.rows; i++)
             {
@@ -593,7 +556,7 @@ namespace ninebot_algo
                         show.at<cv::Vec3b>(i, j) = cv::Vec3b(255 - 2.5 * map_value, 255 - 2.5 * map_value, 255 - 2.5 * map_value);
                     }
                 }
-            } 
+            }
             return show.clone();   
         }
 
