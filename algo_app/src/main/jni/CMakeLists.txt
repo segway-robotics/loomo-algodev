@@ -8,7 +8,8 @@ project(Algo)
 # set(APP_MODULE "TEST")
 # set(APP_MODULE "LOCALMAPPING_TEST")
 # set(APP_MODULE "TENSORFLOW_SAMPLE")
-set(APP_MODULE "SOCKET")
+# set(APP_MODULE "SOCKET")
+set(APP_MODULE "FOLLOW")
 
 #####################################
 # Set the compile related flags....
@@ -94,6 +95,12 @@ if(USING_SOCKET_MODULE)
     set(USE_LOCALMAPPING ON)
 #    set(USE_LIBREALSENSE ON)
 endif(USING_SOCKET_MODULE)
+
+string(COMPARE EQUAL ${APP_MODULE} "FOLLOW" USING_FOLLOW_MODULE)
+if(USING_FOLLOW_MODULE)
+    set(USE_LOCALMAPPING ON)
+#    set(USE_LIBREALSENSE ON)
+endif(USING_FOLLOW_MODULE)
 
 #####################################
 #link AlgoBase   #maybe as a subdirectory better ?
@@ -203,7 +210,7 @@ if(USING_TENSORFLOW_SAMPLE_MODULE)
 endif()
 
 #####################################
-#compile the app test
+#compile the app socket
 #####################################
 if(USING_SOCKET_MODULE)
     include_directories(${PROJECT_SOURCE_DIR}/app_socket)
@@ -214,6 +221,22 @@ if(USING_SOCKET_MODULE)
         ${ALGO_BASE_DIR}/utils/AlgoUtils.cpp
     )
     add_definitions("-DAPP_SOCKET")
+endif()
+
+#####################################
+#compile the app follow
+#####################################
+if(USING_FOLLOW_MODULE)
+    include_directories(${PROJECT_SOURCE_DIR}/app_follow)
+    set(TARGET_FILES
+        ${GENERA_TAGET_FILES}
+        ${PROJECT_SOURCE_DIR}/app_follow/AlgoFollow.cpp
+        ${PROJECT_SOURCE_DIR}/app_follow/SocketServer.cpp
+        ${PROJECT_SOURCE_DIR}/app_follow/PID.cpp
+        ${PROJECT_SOURCE_DIR}/app_follow/DepthPreprocess.cpp
+        ${ALGO_BASE_DIR}/utils/AlgoUtils.cpp
+    )
+    add_definitions("-DAPP_FOLLOW")
 endif()
 
 #####################################

@@ -94,6 +94,27 @@ JNIEXPORT void JNICALL testAlgoStart(JNIEnv *env, jobject obj, jboolean isSim)
     mAlgoStarted = true;
 }
 
+
+/***********************************************************
+********** Follow *************************
+***********************************************************/
+#elif defined(APP_FOLLOW)
+#include "AlgoFollow.h"
+
+RawData *pAlgoMainRawData = NULL;
+follow_algo::AlgoFollow* pAlgoMain = NULL;
+std::string app_name = "APP_FOLLOW";
+
+JNIEXPORT void JNICALL testAlgoStart(JNIEnv *env, jobject obj, jboolean isSim)
+{
+    pAlgoMainRawData = new RawData();
+    RawData::StartSensors(isSim, "/sdcard/RawDataRec/tmp/");
+    pAlgoMainRawData->attachJVM();
+    pAlgoMain = new follow_algo::AlgoFollow(pAlgoMainRawData, 100);
+    pAlgoMain->start();
+    mAlgoStarted = true;
+}
+
 #endif
 
 int camera_index = 2;
@@ -119,6 +140,10 @@ JNIEXPORT void JNICALL funcA(JNIEnv *env, jobject obj){
     if(pAlgoMain){
         pAlgoMain->switchSafetyControl();
     }    
+#elif defined(APP_FOLLOW)
+    if(pAlgoMain){
+        pAlgoMain->switchHeadTracker();
+    }
 #endif
 }
 
@@ -126,6 +151,10 @@ JNIEXPORT void JNICALL funcB(JNIEnv *env, jobject obj){
 #if defined(APP_TEST)
     if(pAlgoMain){
         pAlgoMain->startMotionTest();
+    }
+#elif defined(APP_FOLLOW)
+    if(pAlgoMain){
+        pAlgoMain->switchVehicleTracker();
     }
 #endif
 }
@@ -335,6 +364,9 @@ JNIEXPORT jstring JNICALL getDebugInfo(JNIEnv *env, jobject obj) {
 #if (defined(APP_LOCALMAPPING_TEST))
     if(pAlgoMain)
         contents = contents + pAlgoMain->getDebugString();
+#elif (defined(APP_FOLLOW))
+    if(pAlgoMain)
+        contents = contents + pAlgoMain->getDebugString();        
 #endif
 
     return env->NewStringUTF(contents.c_str());
@@ -389,6 +421,8 @@ JNIEXPORT jint JNICALL CameraConfigureType(JNIEnv *env, jobject obj) {
     return USE_PLATFORMCAM;
 #elif defined(APP_SOCKET)
     return USE_DEPTH | USE_FISHEYE;
+#elif defined(APP_FOLLOW)
+    return USE_DEPTH | USE_PLATFORMCAM;
 #else
     return USE_DEPTH | USE_FISHEYE;
 #endif
