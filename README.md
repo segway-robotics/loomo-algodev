@@ -11,6 +11,6 @@ Developers can build a ROS like thread, retrieve sensor data, and execute veloci
 
 The 3rd party library should be downloaded and extracted to **dependency\3rdparty_android**:
 
-http://pan.aprwork.com/index.php/s/68hUtg6ZfC9bAvj
+https://drive.google.com/drive/folders/1FSVhPz7ZhSJqS4sTjBbKZDFhiEfk5ofH
 
 **This project is still in beta phases, and more documentation is needed.**
